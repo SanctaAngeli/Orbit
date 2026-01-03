@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orbit - Friendship Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+    input, select, button { font-family: inherit; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
+
+    // ============================================
+    // ORBIT - Friendship Tracking Solar System
+    // ============================================
+
+    // ============================================
+    // SUPABASE CONFIGURATION
+    // Replace these with your actual Supabase credentials
+    // ============================================
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    
+    // Initialize Supabase client
+    // Important: Named 'supabaseClient' to avoid conflict with the global 'supabase' object from the CDN
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Check if Supabase is configured
+    const isSupabaseConfigured = () => {
+      return SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
+    };
+
+    // Auth Context
+    const AuthContext = createContext(null);
+    function useAuth() { return useContext(AuthContext); }
+
+    // Default data
+    const DEFAULT_ORBITS = [
+      { id: 'A', name: 'Inner Circle', decayDays: 7 },
+      { id: 'B', name: 'Close Friends', decayDays: 14 },
+      { id: 'C', name: 'Good Friends', decayDays: 21 },
+      { id: 'D', name: 'Friends', decayDays: 30 },
+      { id: 'E', name: 'Acquaintances', decayDays: 60 },
+      { id: 'F', name: 'Distant', decayDays: 90 },
+    ];
+
+    const DEFAULT_TAGS = ['family', 'work', 'friend', 'uni', 'hobby'];
+
+    // Utility functions
+    const getDecayColor = (ratio) => {
+      const clampedRatio = Math.max(0, Math.min(ratio, 1));
+      if (clampedRatio <= 0.5) {
+        const t = clampedRatio * 2;
+        return `rgb(${Math.round(t * 255)}, ${Math.round(255 - t * 40)}, ${Math.round(127 - t * 127)})`;
+      } else {
+        const t = (clampedRatio - 0.5) * 2;
+        return `rgb(255, ${Math.round(215 - t * 146)}, 0)`;
+      }
+    };
+
+    const daysSince = (dateStr) => {
+      if (!dateStr) return 999;
+      const then = new Date(dateStr);
+      const now = new Date();
+      return Math.floor((now - then) / (1000 * 60 * 60 * 24));
+    };
+
+    const generateId = () => Math.random().toString(36).substr(2, 9);
+
+    // Styles object
+    const styles = {
+      configWarning: {
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        color: '#e0e0e0',
+        padding: '40px',
+        textAlign: 'center',
+      },
+      configWarningIcon: {
+        fontSize: '48px',
+        marginBottom: '20px',
+      },
+      configWarningTitle: {
+        fontSize: '24px',
+        fontWeight: '600',
+        marginBottom: '16px',
+        color: '#FFD700',
+      },
+      configWarningText: {
+        fontSize: '14px',
+        color: '#8892b0',
+        maxWidth: '500px',
+        lineHeight: '1.6',
+      },
+      loadingContainer: {
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        color: '#e0e0e0',
+      },
+      loadingSpinner: {
+        fontSize: '48px',
+        color: '#FFD700',
+        animation: 'pulse 1.5s ease-in-out infinite',
+        marginBottom: '16px',
+      },
+      authContainer: {
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '20px',
+        position: 'relative',
+      },
+      authStars: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: `
+          radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.8) 0%, transparent 100%),
+          radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.6) 0%, transparent 100%),
+          radial-gradient(1px 1px at 50% 20%, rgba(255,255,255,0.7) 0%, transparent 100%),
+          radial-gradient(2px 2px at 60% 50%, rgba(255,255,255,0.5) 0%, transparent 100%),
+          radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.6) 0%, transparent 100%)
+        `,
+        pointerEvents: 'none',
+      },
+      authCard: {
+        width: '360px',
+        maxWidth: '100%',
+        background: 'rgba(20, 20, 40, 0.9)',
+        borderRadius: '20px',
+        padding: '40px 32px',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
+        border: '1px solid rgba(100, 149, 237, 0.1)',
+        position: 'relative',
+        zIndex: 1,
+      },
+      authLogo: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '12px',
+        marginBottom: '8px',
+      },
+      authLogoIcon: {
+        fontSize: '36px',
+        color: '#FFD700',
+        textShadow: '0 0 30px rgba(255, 215, 0, 0.5)',
+      },
+      authLogoText: {
+        fontSize: '32px',
+        fontWeight: '700',
+        letterSpacing: '3px',
+        background: 'linear-gradient(135deg, #e0e0e0 0%, #a0a0a0 100%)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+      },
+      authSubtitle: {
+        textAlign: 'center',
+        color: '#8892b0',
+        fontSize: '14px',
+        marginBottom: '32px',
+      },
+      authForm: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+      },
+      authInput: {
+        padding: '14px 16px',
+        background: 'rgba(30, 30, 50, 0.8)',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '12px',
+        color: '#e0e0e0',
+        fontSize: '15px',
+        outline: 'none',
+      },
+      authError: {
+        color: '#ff6b6b',
+        fontSize: '13px',
+        textAlign: 'center',
+        padding: '8px',
+        background: 'rgba(255, 107, 107, 0.1)',
+        borderRadius: '8px',
+      },
+      authSuccess: {
+        color: '#00c853',
+        fontSize: '13px',
+        textAlign: 'center',
+        padding: '8px',
+        background: 'rgba(0, 200, 83, 0.1)',
+        borderRadius: '8px',
+      },
+      authButton: {
+        padding: '14px',
+        background: 'linear-gradient(135deg, rgba(100, 149, 237, 0.5) 0%, rgba(70, 119, 207, 0.5) 100%)',
+        border: '1px solid rgba(100, 149, 237, 0.5)',
+        borderRadius: '12px',
+        color: '#fff',
+        fontSize: '15px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        marginTop: '8px',
+      },
+      authToggle: {
+        background: 'none',
+        border: 'none',
+        color: '#8892b0',
+        fontSize: '13px',
+        cursor: 'pointer',
+        marginTop: '20px',
+        width: '100%',
+        textAlign: 'center',
+      },
+      container: {
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%)',
+        color: '#e0e0e0',
+        position: 'relative',
+        overflow: 'hidden',
+      },
+      stars: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: `
+          radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.8) 0%, transparent 100%),
+          radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.6) 0%, transparent 100%),
+          radial-gradient(1px 1px at 50% 20%, rgba(255,255,255,0.7) 0%, transparent 100%),
+          radial-gradient(2px 2px at 60% 50%, rgba(255,255,255,0.5) 0%, transparent 100%),
+          radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.6) 0%, transparent 100%),
+          radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.7) 0%, transparent 100%),
+          radial-gradient(1px 1px at 90% 40%, rgba(255,255,255,0.5) 0%, transparent 100%),
+          radial-gradient(1px 1px at 10% 60%, rgba(255,255,255,0.6) 0%, transparent 100%)
+        `,
+        pointerEvents: 'none',
+      },
+      header: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '20px 32px',
+        borderBottom: '1px solid rgba(100, 149, 237, 0.1)',
+        position: 'relative',
+        zIndex: 10,
+        flexWrap: 'wrap',
+        gap: '12px',
+      },
+      logo: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+      },
+      logoIcon: {
+        fontSize: '28px',
+        color: '#FFD700',
+        textShadow: '0 0 20px rgba(255, 215, 0, 0.5)',
+      },
+      logoText: {
+        fontSize: '24px',
+        fontWeight: '700',
+        letterSpacing: '2px',
+        background: 'linear-gradient(135deg, #e0e0e0 0%, #a0a0a0 100%)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+      },
+      headerActions: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        flexWrap: 'wrap',
+      },
+      savingIndicator: {
+        fontSize: '12px',
+        color: '#8892b0',
+        marginRight: '8px',
+      },
+      viewToggle: {
+        padding: '8px 16px',
+        background: 'transparent',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '20px',
+        color: '#8892b0',
+        cursor: 'pointer',
+        fontSize: '13px',
+      },
+      viewToggleActive: {
+        background: 'rgba(100, 149, 237, 0.2)',
+        borderColor: 'rgba(100, 149, 237, 0.5)',
+        color: '#e0e0e0',
+      },
+      settingsBtn: {
+        padding: '8px 12px',
+        background: 'transparent',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '8px',
+        color: '#8892b0',
+        cursor: 'pointer',
+        fontSize: '16px',
+      },
+      signOutBtn: {
+        padding: '8px 14px',
+        background: 'transparent',
+        border: '1px solid rgba(255, 100, 100, 0.3)',
+        borderRadius: '8px',
+        color: '#ff6b6b',
+        cursor: 'pointer',
+        fontSize: '12px',
+      },
+      filterBar: {
+        display: 'flex',
+        gap: '8px',
+        padding: '16px 32px',
+        flexWrap: 'wrap',
+        position: 'relative',
+        zIndex: 10,
+      },
+      filterBtn: {
+        padding: '6px 14px',
+        background: 'rgba(30, 30, 50, 0.6)',
+        border: '1px solid rgba(100, 149, 237, 0.2)',
+        borderRadius: '16px',
+        color: '#8892b0',
+        cursor: 'pointer',
+        fontSize: '12px',
+        textTransform: 'capitalize',
+      },
+      filterBtnActive: {
+        background: 'rgba(100, 149, 237, 0.25)',
+        borderColor: 'rgba(100, 149, 237, 0.5)',
+        color: '#e0e0e0',
+      },
+      main: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '20px',
+        position: 'relative',
+        zIndex: 5,
+      },
+      galaxyContainer: {
+        width: '100%',
+        maxWidth: '700px',
+        aspectRatio: '1',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      galaxySvg: {
+        overflow: 'visible',
+      },
+      addBtn: {
+        position: 'fixed',
+        bottom: '32px',
+        right: '32px',
+        padding: '14px 24px',
+        background: 'linear-gradient(135deg, #4a5568 0%, #2d3748 100%)',
+        border: 'none',
+        borderRadius: '30px',
+        color: '#e0e0e0',
+        fontSize: '14px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+        zIndex: 100,
+      },
+      listContainer: {
+        width: '100%',
+        maxWidth: '1000px',
+        padding: '20px',
+        overflowX: 'auto',
+      },
+      table: {
+        width: '100%',
+        borderCollapse: 'collapse',
+        background: 'rgba(20, 20, 40, 0.6)',
+        borderRadius: '12px',
+        overflow: 'hidden',
+      },
+      th: {
+        padding: '14px 16px',
+        textAlign: 'left',
+        fontSize: '11px',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: '1px',
+        color: '#8892b0',
+        borderBottom: '1px solid rgba(100, 149, 237, 0.1)',
+      },
+      tr: {
+        cursor: 'pointer',
+      },
+      td: {
+        padding: '14px 16px',
+        borderBottom: '1px solid rgba(100, 149, 237, 0.05)',
+        fontSize: '14px',
+      },
+      statusDot: {
+        width: '12px',
+        height: '12px',
+        borderRadius: '50%',
+        boxShadow: '0 0 8px currentColor',
+      },
+      listPhoto: {
+        width: '32px',
+        height: '32px',
+        borderRadius: '50%',
+        objectFit: 'cover',
+      },
+      listPhotoPlaceholder: {
+        width: '32px',
+        height: '32px',
+        borderRadius: '50%',
+        background: 'rgba(100, 149, 237, 0.2)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '14px',
+        color: '#8892b0',
+      },
+      tagContainer: {
+        display: 'flex',
+        gap: '4px',
+        flexWrap: 'wrap',
+      },
+      tagPill: {
+        padding: '2px 8px',
+        background: 'rgba(100, 149, 237, 0.15)',
+        borderRadius: '10px',
+        fontSize: '11px',
+        color: '#8892b0',
+      },
+      emptyState: {
+        textAlign: 'center',
+        padding: '60px 20px',
+        color: '#8892b0',
+        fontSize: '14px',
+      },
+      photoUploadContainer: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '8px',
+      },
+      photoPreview: {
+        borderRadius: '50%',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        border: '2px dashed rgba(100, 149, 237, 0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      photoPreviewImg: {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+      },
+      photoPlaceholder: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#8892b0',
+      },
+      photoPlaceholderIcon: {
+        fontSize: '20px',
+        marginBottom: '4px',
+      },
+      photoPlaceholderText: {
+        fontSize: '10px',
+      },
+      removePhotoBtn: {
+        background: 'none',
+        border: 'none',
+        color: '#ff6b6b',
+        fontSize: '11px',
+        cursor: 'pointer',
+      },
+      detailPanel: {
+        position: 'fixed',
+        top: 0,
+        right: 0,
+        width: '380px',
+        maxWidth: '100%',
+        height: '100vh',
+        background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+        boxShadow: '-4px 0 30px rgba(0, 0, 0, 0.4)',
+        zIndex: 200,
+        overflowY: 'auto',
+        padding: '24px',
+      },
+      detailHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: '20px',
+      },
+      closeBtn: {
+        background: 'none',
+        border: 'none',
+        color: '#8892b0',
+        fontSize: '24px',
+        cursor: 'pointer',
+        padding: '4px',
+      },
+      detailPhoto: {
+        width: '80px',
+        height: '80px',
+        borderRadius: '50%',
+        objectFit: 'cover',
+        marginBottom: '16px',
+      },
+      detailPhotoPlaceholder: {
+        width: '80px',
+        height: '80px',
+        borderRadius: '50%',
+        background: 'rgba(100, 149, 237, 0.2)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '32px',
+        color: '#8892b0',
+        marginBottom: '16px',
+      },
+      detailName: {
+        fontSize: '24px',
+        fontWeight: '600',
+        marginBottom: '4px',
+      },
+      detailOrbit: {
+        fontSize: '13px',
+        color: '#8892b0',
+        marginBottom: '20px',
+      },
+      orbitSelect: {
+        marginLeft: '8px',
+        padding: '4px 8px',
+        background: 'rgba(30, 30, 50, 0.8)',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '6px',
+        color: '#e0e0e0',
+        fontSize: '12px',
+      },
+      sectionTitle: {
+        fontSize: '12px',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: '1px',
+        color: '#8892b0',
+        marginBottom: '12px',
+      },
+      statsBox: {
+        background: 'rgba(30, 30, 50, 0.5)',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '24px',
+      },
+      statRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: '8px',
+      },
+      statLabel: {
+        color: '#8892b0',
+        fontSize: '13px',
+      },
+      statValue: {
+        color: '#e0e0e0',
+        fontSize: '13px',
+      },
+      quickActions: {
+        display: 'flex',
+        gap: '10px',
+        marginBottom: '24px',
+      },
+      actionBtnSeen: {
+        flex: 1,
+        padding: '14px',
+        background: 'linear-gradient(135deg, rgba(0, 200, 100, 0.3) 0%, rgba(0, 150, 75, 0.3) 100%)',
+        border: '1px solid rgba(0, 200, 100, 0.4)',
+        borderRadius: '12px',
+        color: '#e0e0e0',
+        fontSize: '13px',
+        fontWeight: '600',
+        cursor: 'pointer',
+      },
+      actionBtnTexted: {
+        flex: 1,
+        padding: '14px',
+        background: 'linear-gradient(135deg, rgba(100, 149, 237, 0.3) 0%, rgba(70, 119, 207, 0.3) 100%)',
+        border: '1px solid rgba(100, 149, 237, 0.4)',
+        borderRadius: '12px',
+        color: '#e0e0e0',
+        fontSize: '13px',
+        fontWeight: '600',
+        cursor: 'pointer',
+      },
+      tagsSection: {
+        marginBottom: '24px',
+      },
+      tagsGrid: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px',
+      },
+      tagToggle: {
+        padding: '6px 12px',
+        background: 'rgba(30, 30, 50, 0.6)',
+        border: '1px solid rgba(100, 149, 237, 0.2)',
+        borderRadius: '14px',
+        color: '#8892b0',
+        fontSize: '12px',
+        cursor: 'pointer',
+        textTransform: 'capitalize',
+      },
+      tagToggleActive: {
+        background: 'rgba(100, 149, 237, 0.3)',
+        borderColor: 'rgba(100, 149, 237, 0.5)',
+        color: '#e0e0e0',
+      },
+      logSection: {
+        marginBottom: '24px',
+      },
+      logHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '12px',
+      },
+      addLogBtn: {
+        padding: '6px 12px',
+        background: 'transparent',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '14px',
+        color: '#8892b0',
+        fontSize: '11px',
+        cursor: 'pointer',
+      },
+      addLogForm: {
+        background: 'rgba(30, 30, 50, 0.5)',
+        borderRadius: '12px',
+        padding: '14px',
+        marginBottom: '12px',
+      },
+      logFormRow: {
+        display: 'flex',
+        gap: '8px',
+        marginBottom: '10px',
+      },
+      logSelect: {
+        flex: 1,
+        padding: '8px 10px',
+        background: 'rgba(20, 20, 40, 0.8)',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '8px',
+        color: '#e0e0e0',
+        fontSize: '13px',
+      },
+      logDateInput: {
+        flex: 1,
+        padding: '8px 10px',
+        background: 'rgba(20, 20, 40, 0.8)',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '8px',
+        color: '#e0e0e0',
+        fontSize: '13px',
+        colorScheme: 'dark',
+      },
+      logNoteInput: {
+        width: '100%',
+        padding: '8px 10px',
+        background: 'rgba(20, 20, 40, 0.8)',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '8px',
+        color: '#e0e0e0',
+        fontSize: '13px',
+        marginBottom: '10px',
+        boxSizing: 'border-box',
+      },
+      logSubmitBtn: {
+        width: '100%',
+        padding: '10px',
+        background: 'rgba(100, 149, 237, 0.3)',
+        border: 'none',
+        borderRadius: '8px',
+        color: '#e0e0e0',
+        fontSize: '13px',
+        cursor: 'pointer',
+      },
+      logList: {
+        maxHeight: '200px',
+        overflowY: 'auto',
+      },
+      logEntry: {
+        display: 'flex',
+        gap: '12px',
+        padding: '10px 0',
+        borderBottom: '1px solid rgba(100, 149, 237, 0.1)',
+      },
+      logIcon: {
+        fontSize: '16px',
+      },
+      logContent: {
+        flex: 1,
+      },
+      logDate: {
+        fontSize: '13px',
+        color: '#e0e0e0',
+      },
+      logNote: {
+        fontSize: '12px',
+        color: '#8892b0',
+        marginTop: '2px',
+      },
+      emptyLog: {
+        textAlign: 'center',
+        padding: '20px',
+        color: '#8892b0',
+        fontSize: '13px',
+      },
+      deleteBtn: {
+        width: '100%',
+        padding: '12px',
+        background: 'transparent',
+        border: '1px solid rgba(255, 100, 100, 0.3)',
+        borderRadius: '8px',
+        color: '#ff6b6b',
+        fontSize: '13px',
+        cursor: 'pointer',
+        marginTop: '20px',
+      },
+      modalOverlay: {
+        position: 'fixed',
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0, 0, 0, 0.8)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+        padding: '20px',
+      },
+      modal: {
+        width: '440px',
+        maxWidth: '100%',
+        maxHeight: '90vh',
+        background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+        borderRadius: '16px',
+        padding: '28px',
+        overflowY: 'auto',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4)',
+      },
+      modalTitle: {
+        fontSize: '20px',
+        fontWeight: '600',
+        marginBottom: '24px',
+        color: '#e0e0e0',
+      },
+      formGroup: {
+        marginBottom: '20px',
+      },
+      label: {
+        display: 'block',
+        fontSize: '12px',
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: '1px',
+        color: '#8892b0',
+        marginBottom: '8px',
+      },
+      input: {
+        width: '100%',
+        padding: '12px 14px',
+        background: 'rgba(30, 30, 50, 0.8)',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '10px',
+        color: '#e0e0e0',
+        fontSize: '14px',
+        boxSizing: 'border-box',
+      },
+      select: {
+        width: '100%',
+        padding: '12px 14px',
+        background: 'rgba(30, 30, 50, 0.8)',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '10px',
+        color: '#e0e0e0',
+        fontSize: '14px',
+        boxSizing: 'border-box',
+      },
+      tagsInputContainer: {
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '8px',
+      },
+      modalActions: {
+        display: 'flex',
+        gap: '12px',
+        marginTop: '24px',
+      },
+      cancelBtn: {
+        flex: 1,
+        padding: '12px',
+        background: 'transparent',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '10px',
+        color: '#8892b0',
+        fontSize: '14px',
+        cursor: 'pointer',
+      },
+      submitBtn: {
+        flex: 1,
+        padding: '12px',
+        background: 'linear-gradient(135deg, rgba(100, 149, 237, 0.5) 0%, rgba(70, 119, 207, 0.5) 100%)',
+        border: 'none',
+        borderRadius: '10px',
+        color: '#e0e0e0',
+        fontSize: '14px',
+        fontWeight: '600',
+        cursor: 'pointer',
+      },
+      accountInfo: {
+        background: 'rgba(30, 30, 50, 0.5)',
+        borderRadius: '10px',
+        padding: '16px',
+        marginBottom: '24px',
+      },
+      accountLabel: {
+        fontSize: '12px',
+        color: '#8892b0',
+        display: 'block',
+        marginBottom: '4px',
+      },
+      accountEmail: {
+        fontSize: '14px',
+        color: '#e0e0e0',
+      },
+      orbitsList: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+      },
+      orbitRow: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+      },
+      orbitId: {
+        width: '28px',
+        height: '28px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(100, 149, 237, 0.2)',
+        borderRadius: '50%',
+        fontSize: '12px',
+        fontWeight: '600',
+        color: '#e0e0e0',
+        flexShrink: 0,
+      },
+      orbitNameInput: {
+        flex: 1,
+        padding: '10px 12px',
+        background: 'rgba(30, 30, 50, 0.8)',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '8px',
+        color: '#e0e0e0',
+        fontSize: '13px',
+        minWidth: 0,
+      },
+      daysInputWrapper: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        flexShrink: 0,
+      },
+      daysInput: {
+        width: '60px',
+        padding: '10px 8px',
+        background: 'rgba(30, 30, 50, 0.8)',
+        border: '1px solid rgba(100, 149, 237, 0.3)',
+        borderRadius: '8px',
+        color: '#e0e0e0',
+        fontSize: '13px',
+        textAlign: 'center',
+      },
+      daysLabel: {
+        fontSize: '12px',
+        color: '#8892b0',
+      },
+    };
+
+    // Auth Provider with Supabase
+    function AuthProvider({ children }) {
+      const [user, setUser] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        // Get initial session
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+          setUser(session?.user ?? null);
+          setLoading(false);
+        });
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+          setUser(session?.user ?? null);
+        });
+
+        return () => subscription.unsubscribe();
+      }, []);
+
+      const signUp = async (email, password) => {
+        const { data, error } = await supabaseClient.auth.signUp({
+          email,
+          password,
+        });
+        if (error) throw error;
+        return data;
+      };
+
+      const signIn = async (email, password) => {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        return data;
+      };
+
+      const signOut = async () => {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) throw error;
+      };
+
+      return (
+        <AuthContext.Provider value={{ user, loading, signUp, signIn, signOut }}>
+          {children}
+        </AuthContext.Provider>
+      );
+    }
+
+    // Auth Screen
+    function AuthScreen() {
+      const [mode, setMode] = useState('signin');
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+      const [message, setMessage] = useState('');
+      const [loading, setLoading] = useState(false);
+      const { signIn, signUp } = useAuth();
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setMessage('');
+        setLoading(true);
+        try {
+          if (mode === 'signin') {
+            await signIn(email, password);
+          } else {
+            await signUp(email, password);
+            setMessage('Check your email for a confirmation link!');
+          }
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div style={styles.authContainer}>
+          <div style={styles.authStars} />
+          <div style={styles.authCard}>
+            <div style={styles.authLogo}>
+              <span style={styles.authLogoIcon}>◉</span>
+              <span style={styles.authLogoText}>Orbit</span>
+            </div>
+            <p style={styles.authSubtitle}>Track your friendships across the cosmos</p>
+            <form onSubmit={handleSubmit} style={styles.authForm}>
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={styles.authInput}
+                required
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={styles.authInput}
+                required
+                minLength={6}
+              />
+              {error && <div style={styles.authError}>{error}</div>}
+              {message && <div style={styles.authSuccess}>{message}</div>}
+              <button type="submit" style={styles.authButton} disabled={loading}>
+                {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+              </button>
+            </form>
+            <button 
+              style={styles.authToggle}
+              onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setMessage(''); }}
+            >
+              {mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Photo Upload Component
+    function PhotoUpload({ photo, onPhotoChange, size = 80 }) {
+      const fileInputRef = useRef(null);
+      
+      const handleFileChange = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          if (file.size > 5 * 1024 * 1024) {
+            alert('Image must be smaller than 5MB');
+            return;
+          }
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const maxSize = 200;
+              let { width, height } = img;
+              if (width > height) {
+                if (width > maxSize) { height = (height * maxSize) / width; width = maxSize; }
+              } else {
+                if (height > maxSize) { width = (width * maxSize) / height; height = maxSize; }
+              }
+              canvas.width = width;
+              canvas.height = height;
+              canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+              onPhotoChange(canvas.toDataURL('image/jpeg', 0.8));
+            };
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+      
+      return (
+        <div style={styles.photoUploadContainer}>
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" style={{ display: 'none' }} />
+          <div style={{...styles.photoPreview, width: size, height: size}} onClick={() => fileInputRef.current?.click()}>
+            {photo ? (
+              <img src={photo} alt="Profile" style={styles.photoPreviewImg} />
+            ) : (
+              <div style={styles.photoPlaceholder}>
+                <span style={styles.photoPlaceholderIcon}>📷</span>
+                <span style={styles.photoPlaceholderText}>Add Photo</span>
+              </div>
+            )}
+          </div>
+          {photo && <button style={styles.removePhotoBtn} onClick={(e) => { e.stopPropagation(); onPhotoChange(null); }}>Remove</button>}
+        </div>
+      );
+    }
+
+    // Galaxy View
+    function GalaxyView({ sunName, people, filteredIds, orbits, time, selectedPerson, onSelectPerson }) {
+      const containerRef = useRef(null);
+      const [dimensions, setDimensions] = useState({ width: 600, height: 600 });
+      
+      useEffect(() => {
+        const updateDimensions = () => {
+          if (containerRef.current) {
+            const size = Math.min(containerRef.current.offsetWidth, window.innerHeight - 200);
+            setDimensions({ width: size, height: size });
+          }
+        };
+        updateDimensions();
+        window.addEventListener('resize', updateDimensions);
+        return () => window.removeEventListener('resize', updateDimensions);
+      }, []);
+      
+      const size = Math.min(dimensions.width, dimensions.height);
+      const center = size / 2;
+      const maxOrbitRadius = (size / 2) - 40;
+      const sunRadius = 25;
+      
+      const getOrbitRadius = (orbitId) => {
+        const index = orbits.findIndex(o => o.id === orbitId);
+        if (index === -1) return maxOrbitRadius;
+        return sunRadius + 30 + ((index + 1) / orbits.length) * (maxOrbitRadius - sunRadius - 30);
+      };
+      
+      return (
+        <div ref={containerRef} style={styles.galaxyContainer}>
+          <svg width={size} height={size} style={styles.galaxySvg}>
+            <defs>
+              <radialGradient id="sunGradient">
+                <stop offset="0%" stopColor="#FFD700" />
+                <stop offset="70%" stopColor="#FFA500" />
+                <stop offset="100%" stopColor="#FF8C00" />
+              </radialGradient>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
+              </filter>
+            </defs>
+            
+            {orbits.map((orbit) => (
+              <circle
+                key={orbit.id}
+                cx={center}
+                cy={center}
+                r={getOrbitRadius(orbit.id)}
+                fill="none"
+                stroke="rgba(100, 149, 237, 0.15)"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+            ))}
+            
+            <circle cx={center} cy={center} r={sunRadius} fill="url(#sunGradient)" filter="url(#glow)" style={{ cursor: 'default' }} />
+            <text x={center} y={center + 4} textAnchor="middle" fill="#1a1a2e" fontSize="10" fontWeight="600">{sunName}</text>
+            
+            {people.map((person) => {
+              const isFiltered = filteredIds.includes(person.id);
+              const orbitRadius = getOrbitRadius(person.orbitId);
+              const baseAngle = person.calculatedAngle || 0;
+              const orbitIndex = orbits.findIndex(o => o.id === person.orbitId);
+              const orbitSpeed = 0.2 + (orbitIndex * 0.1);
+              const angle = baseAngle + time * orbitSpeed;
+              const x = center + Math.cos(angle) * orbitRadius;
+              const y = center + Math.sin(angle) * orbitRadius;
+              const orbit = orbits.find(o => o.id === person.orbitId);
+              const days = daysSince(person.lastContactDate);
+              const ratio = orbit ? Math.min(days / orbit.decayDays, 1) : 1;
+              const color = getDecayColor(ratio);
+              const isSelected = selectedPerson?.id === person.id;
+              const planetRadius = isSelected ? 18 : 14;
+              
+              return (
+                <g key={person.id} style={{ opacity: isFiltered ? 1 : 0.2, cursor: 'pointer' }} onClick={() => isFiltered && onSelectPerson(person)}>
+                  <circle cx={x} cy={y} r={planetRadius + 3} fill={color} opacity="0.3" filter="url(#glow)" />
+                  <circle cx={x} cy={y} r={planetRadius} fill={person.photo ? 'none' : color} stroke={color} strokeWidth="2" />
+                  {person.photo && (
+                    <clipPath id={`clip-${person.id}`}><circle cx={x} cy={y} r={planetRadius - 1} /></clipPath>
+                  )}
+                  {person.photo && (
+                    <image href={person.photo} x={x - planetRadius + 1} y={y - planetRadius + 1} width={(planetRadius - 1) * 2} height={(planetRadius - 1) * 2} clipPath={`url(#clip-${person.id})`} preserveAspectRatio="xMidYMid slice" />
+                  )}
+                  <text x={x} y={y + planetRadius + 14} textAnchor="middle" fill="#e0e0e0" fontSize="10" fontWeight="500">{person.name.split(' ')[0]}</text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      );
+    }
+
+    // List View
+    function ListView({ people, orbits, onSelectPerson }) {
+      if (people.length === 0) {
+        return <div style={styles.emptyState}>No people in your orbit yet. Add someone to get started!</div>;
+      }
+      
+      const sortedPeople = [...people].sort((a, b) => {
+        const orbitA = orbits.findIndex(o => o.id === a.orbitId);
+        const orbitB = orbits.findIndex(o => o.id === b.orbitId);
+        if (orbitA !== orbitB) return orbitA - orbitB;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+      
+      return (
+        <div style={styles.listContainer}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Status</th>
+                <th style={styles.th}>Photo</th>
+                <th style={styles.th}>Name</th>
+                <th style={styles.th}>Orbit</th>
+                <th style={styles.th}>Last Contact</th>
+                <th style={styles.th}>Tags</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedPeople.map(person => {
+                const orbit = orbits.find(o => o.id === person.orbitId);
+                const days = daysSince(person.lastContactDate);
+                const ratio = orbit ? Math.min(days / orbit.decayDays, 1) : 1;
+                const color = getDecayColor(ratio);
+                return (
+                  <tr key={person.id} style={styles.tr} onClick={() => onSelectPerson(person)}>
+                    <td style={styles.td}><div style={{...styles.statusDot, backgroundColor: color, color}} /></td>
+                    <td style={styles.td}>
+                      {person.photo ? <img src={person.photo} style={styles.listPhoto} alt="" /> : <div style={styles.listPhotoPlaceholder}>👤</div>}
+                    </td>
+                    <td style={styles.td}>{person.name}</td>
+                    <td style={styles.td}>{orbit?.name || person.orbitId}</td>
+                    <td style={styles.td}>{days === 999 ? 'Never' : days === 0 ? 'Today' : `${days}d ago`}</td>
+                    <td style={styles.td}>
+                      <div style={styles.tagContainer}>
+                        {(person.tags || []).map(tag => <span key={tag} style={styles.tagPill}>{tag}</span>)}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    // Detail Panel
+    function DetailPanel({ person, orbits, onClose, onUpdate, onDelete, onLogInteraction, allTags }) {
+      const [showLogForm, setShowLogForm] = useState(false);
+      const [logType, setLogType] = useState('seen');
+      const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0]);
+      const [logNote, setLogNote] = useState('');
+      
+      const orbit = orbits.find(o => o.id === person.orbitId);
+      const days = daysSince(person.lastContactDate);
+      const ratio = orbit ? Math.min(days / orbit.decayDays, 1) : 1;
+      
+      const toggleTag = (tag) => {
+        const current = person.tags || [];
+        const updated = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag];
+        onUpdate({ tags: updated });
+      };
+      
+      const handleLogSubmit = () => {
+        onLogInteraction(logType, logDate, logNote);
+        setShowLogForm(false);
+        setLogNote('');
+        setLogDate(new Date().toISOString().split('T')[0]);
+      };
+      
+      const logIcons = { seen: '👋', texted: '💬', called: '📞', email: '📧', social: '📱' };
+      
+      return (
+        <div style={styles.detailPanel}>
+          <div style={styles.detailHeader}>
+            <div>
+              {person.photo ? <img src={person.photo} style={styles.detailPhoto} alt="" /> : <div style={styles.detailPhotoPlaceholder}>👤</div>}
+              <div style={styles.detailName}>{person.name}</div>
+              <div style={styles.detailOrbit}>
+                Orbit:
+                <select style={styles.orbitSelect} value={person.orbitId} onChange={(e) => onUpdate({ orbitId: e.target.value })}>
+                  {orbits.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <button style={styles.closeBtn} onClick={onClose}>×</button>
+          </div>
+          
+          <div style={styles.sectionTitle}>Status</div>
+          <div style={styles.statsBox}>
+            <div style={styles.statRow}><span style={styles.statLabel}>Last Contact</span><span style={styles.statValue}>{days === 999 ? 'Never' : days === 0 ? 'Today' : `${days} days ago`}</span></div>
+            <div style={styles.statRow}><span style={styles.statLabel}>Contact Goal</span><span style={styles.statValue}>Every {orbit?.decayDays || '?'} days</span></div>
+            <div style={styles.statRow}><span style={styles.statLabel}>Health</span><span style={{...styles.statValue, color: getDecayColor(ratio)}}>{ratio < 0.33 ? 'Great' : ratio < 0.66 ? 'Good' : ratio < 1 ? 'Fading' : 'Overdue'}</span></div>
+          </div>
+          
+          <div style={styles.sectionTitle}>Quick Actions</div>
+          <div style={styles.quickActions}>
+            <button style={styles.actionBtnSeen} onClick={() => onLogInteraction('seen')}>👋 Saw Today</button>
+            <button style={styles.actionBtnTexted} onClick={() => onLogInteraction('texted')}>💬 Texted</button>
+          </div>
+          
+          <div style={styles.tagsSection}>
+            <div style={styles.sectionTitle}>Tags</div>
+            <div style={styles.tagsGrid}>
+              {allTags.map(tag => (
+                <button key={tag} style={{...styles.tagToggle, ...(person.tags?.includes(tag) ? styles.tagToggleActive : {})}} onClick={() => toggleTag(tag)}>{tag}</button>
+              ))}
+            </div>
+          </div>
+          
+          <div style={styles.logSection}>
+            <div style={styles.logHeader}>
+              <span style={styles.sectionTitle}>Contact History</span>
+              <button style={styles.addLogBtn} onClick={() => setShowLogForm(!showLogForm)}>+ Add</button>
+            </div>
+            {showLogForm && (
+              <div style={styles.addLogForm}>
+                <div style={styles.logFormRow}>
+                  <select style={styles.logSelect} value={logType} onChange={e => setLogType(e.target.value)}>
+                    <option value="seen">👋 Saw in person</option>
+                    <option value="texted">💬 Texted</option>
+                    <option value="called">📞 Called</option>
+                    <option value="email">📧 Emailed</option>
+                    <option value="social">📱 Social media</option>
+                  </select>
+                  <input type="date" style={styles.logDateInput} value={logDate} onChange={e => setLogDate(e.target.value)} />
+                </div>
+                <input type="text" style={styles.logNoteInput} placeholder="Add a note (optional)" value={logNote} onChange={e => setLogNote(e.target.value)} />
+                <button style={styles.logSubmitBtn} onClick={handleLogSubmit}>Save</button>
+              </div>
+            )}
+            <div style={styles.logList}>
+              {(person.logs || []).length === 0 ? (
+                <div style={styles.emptyLog}>No contact history yet</div>
+              ) : (
+                person.logs.slice(0, 10).map(log => (
+                  <div key={log.id} style={styles.logEntry}>
+                    <span style={styles.logIcon}>{logIcons[log.type] || '📌'}</span>
+                    <div style={styles.logContent}>
+                      <div style={styles.logDate}>{new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                      {log.note && <div style={styles.logNote}>{log.note}</div>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          
+          <button style={styles.deleteBtn} onClick={() => { if (confirm('Remove this person from your orbit?')) onDelete(); }}>Remove from Orbit</button>
+        </div>
+      );
+    }
+
+    // Add Person Modal
+    function AddPersonModal({ orbits, allTags, onAdd, onClose }) {
+      const [name, setName] = useState('');
+      const [orbitId, setOrbitId] = useState('C');
+      const [photo, setPhoto] = useState(null);
+      const [selectedTags, setSelectedTags] = useState([]);
+      const [lastContactDate, setLastContactDate] = useState('');
+      
+      const toggleTag = (tag) => {
+        setSelectedTags(selectedTags.includes(tag) ? selectedTags.filter(t => t !== tag) : [...selectedTags, tag]);
+      };
+      
+      const handleSubmit = () => {
+        if (!name.trim()) return;
+        onAdd({ name: name.trim(), orbitId, photo, tags: selectedTags, lastContactDate: lastContactDate || null });
+      };
+      
+      return (
+        <div style={styles.modalOverlay} onClick={onClose}>
+          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+            <h2 style={styles.modalTitle}>Add to Orbit</h2>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+              <PhotoUpload photo={photo} onPhotoChange={setPhoto} />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Name</label>
+              <input type="text" style={styles.input} value={name} onChange={e => setName(e.target.value)} placeholder="Enter name" autoFocus />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Orbit</label>
+              <select style={styles.select} value={orbitId} onChange={e => setOrbitId(e.target.value)}>
+                {orbits.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Tags</label>
+              <div style={styles.tagsInputContainer}>
+                {allTags.map(tag => (
+                  <button key={tag} type="button" style={{...styles.tagToggle, ...(selectedTags.includes(tag) ? styles.tagToggleActive : {})}} onClick={() => toggleTag(tag)}>{tag}</button>
+                ))}
+              </div>
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Last Contact Date</label>
+              <input type="date" style={styles.input} value={lastContactDate} onChange={e => setLastContactDate(e.target.value)} />
+            </div>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={onClose}>Cancel</button>
+              <button style={styles.submitBtn} onClick={handleSubmit}>Add Person</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Settings Modal
+    function SettingsModal({ sunName, setSunName, orbits, setOrbits, user, onClose }) {
+      const [localSunName, setLocalSunName] = useState(sunName);
+      const [localOrbits, setLocalOrbits] = useState([...orbits]);
+      
+      const updateOrbit = (index, field, value) => {
+        const updated = [...localOrbits];
+        updated[index] = { ...updated[index], [field]: field === 'decayDays' ? parseInt(value) || 1 : value };
+        setLocalOrbits(updated);
+      };
+      
+      return (
+        <div style={styles.modalOverlay} onClick={onClose}>
+          <div style={styles.modal} onClick={e => e.stopPropagation()}>
+            <h2 style={styles.modalTitle}>Settings</h2>
+            <div style={styles.accountInfo}>
+              <span style={styles.accountLabel}>Signed in as:</span>
+              <span style={styles.accountEmail}>{user?.email}</span>
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Your Name (Sun Label)</label>
+              <input type="text" style={styles.input} value={localSunName} onChange={e => setLocalSunName(e.target.value)} />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Orbit Rings</label>
+              <div style={styles.orbitsList}>
+                {localOrbits.map((orbit, i) => (
+                  <div key={orbit.id} style={styles.orbitRow}>
+                    <span style={styles.orbitId}>{orbit.id}</span>
+                    <input type="text" style={styles.orbitNameInput} value={orbit.name} onChange={e => updateOrbit(i, 'name', e.target.value)} />
+                    <div style={styles.daysInputWrapper}>
+                      <input type="number" style={styles.daysInput} value={orbit.decayDays} onChange={e => updateOrbit(i, 'decayDays', e.target.value)} min="1" />
+                      <span style={styles.daysLabel}>days</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={styles.modalActions}>
+              <button style={styles.cancelBtn} onClick={onClose}>Cancel</button>
+              <button style={styles.submitBtn} onClick={() => { setSunName(localSunName); setOrbits(localOrbits); onClose(); }}>Save Changes</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Main App
+    function OrbitMain() {
+      const { user, signOut } = useAuth();
+      const [sunName, setSunName] = useState('Me');
+      const [people, setPeople] = useState([]);
+      const [orbits, setOrbits] = useState(DEFAULT_ORBITS);
+      const [selectedPerson, setSelectedPerson] = useState(null);
+      const [activeFilter, setActiveFilter] = useState('all');
+      const [showAddForm, setShowAddForm] = useState(false);
+      const [showSettings, setShowSettings] = useState(false);
+      const [viewMode, setViewMode] = useState('galaxy');
+      const [time, setTime] = useState(0);
+      const [dataLoaded, setDataLoaded] = useState(false);
+      const [saving, setSaving] = useState(false);
+      
+      // Animation loop
+      useEffect(() => {
+        let animationId;
+        const animate = () => { setTime(t => t + 0.002); animationId = requestAnimationFrame(animate); };
+        animationId = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(animationId);
+      }, []);
+      
+      // Load data from Supabase
+      useEffect(() => {
+        if (user?.id) {
+          loadUserData();
+        }
+      }, [user?.id]);
+      
+      const loadUserData = async () => {
+        try {
+          const { data, error } = await supabaseClient
+            .from('user_saves')
+            .select('save_data')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+            console.error('Error loading data:', error);
+          }
+          
+          if (data?.save_data) {
+            if (data.save_data.sunName) setSunName(data.save_data.sunName);
+            if (data.save_data.people) setPeople(data.save_data.people);
+            if (data.save_data.orbits) setOrbits(data.save_data.orbits);
+          }
+        } catch (err) {
+          console.error('Error loading data:', err);
+        } finally {
+          setDataLoaded(true);
+        }
+      };
+      
+      // Save data to Supabase (debounced)
+      useEffect(() => {
+        if (!dataLoaded || !user?.id) return;
+        
+        setSaving(true);
+        const timeout = setTimeout(async () => {
+          try {
+            const { error } = await supabaseClient
+              .from('user_saves')
+              .upsert({
+                user_id: user.id,
+                save_data: { sunName, people, orbits },
+                updated_at: new Date().toISOString()
+              }, {
+                onConflict: 'user_id'
+              });
+            
+            if (error) {
+              console.error('Error saving data:', error);
+            }
+          } catch (err) {
+            console.error('Error saving data:', err);
+          } finally {
+            setSaving(false);
+          }
+        }, 500);
+        
+        return () => clearTimeout(timeout);
+      }, [sunName, people, orbits, user?.id, dataLoaded]);
+      
+      const getPeopleWithPositions = useCallback(() => {
+        const orbitGroups = {};
+        people.forEach(person => {
+          if (!orbitGroups[person.orbitId]) orbitGroups[person.orbitId] = [];
+          orbitGroups[person.orbitId].push(person);
+        });
+        const positionedPeople = [];
+        Object.entries(orbitGroups).forEach(([orbitId, orbitPeople]) => {
+          orbitPeople.forEach((person, index) => {
+            positionedPeople.push({ ...person, calculatedAngle: (2 * Math.PI * index) / orbitPeople.length });
+          });
+        });
+        return positionedPeople;
+      }, [people]);
+      
+      const addPerson = (person) => {
+        const newPerson = {
+          ...person,
+          id: generateId(),
+          logs: person.lastContactDate ? [{ id: generateId(), date: person.lastContactDate, type: person.lastContactType || 'seen', note: 'Initial entry' }] : []
+        };
+        setPeople([...people, newPerson]);
+        setShowAddForm(false);
+      };
+      
+      const updatePerson = (id, updates) => {
+        setPeople(people.map(p => p.id === id ? { ...p, ...updates } : p));
+        if (selectedPerson?.id === id) setSelectedPerson({ ...selectedPerson, ...updates });
+      };
+      
+      const deletePerson = (id) => {
+        setPeople(people.filter(p => p.id !== id));
+        if (selectedPerson?.id === id) setSelectedPerson(null);
+      };
+      
+      const logInteraction = (personId, type, date = new Date().toISOString().split('T')[0], note = '') => {
+        setPeople(people.map(p => {
+          if (p.id !== personId) return p;
+          const newLog = { id: generateId(), date, type, note };
+          const logs = [newLog, ...(p.logs || [])];
+          const lastContactDate = logs.reduce((latest, log) => (!latest || log.date > latest ? log.date : latest), null);
+          return { ...p, logs, lastContactDate };
+        }));
+      };
+      
+      const filteredPeople = activeFilter === 'all' ? people : people.filter(p => p.tags?.includes(activeFilter));
+      const allTags = [...new Set([...DEFAULT_TAGS, ...people.flatMap(p => p.tags || [])])];
+      const positionedPeople = getPeopleWithPositions();
+      
+      if (!dataLoaded) {
+        return <div style={styles.loadingContainer}><div style={styles.loadingSpinner}>◉</div><p>Loading your orbit...</p></div>;
+      }
+      
+      return (
+        <div style={styles.container}>
+          <div style={styles.stars} />
+          <header style={styles.header}>
+            <div style={styles.logo}>
+              <span style={styles.logoIcon}>◉</span>
+              <span style={styles.logoText}>Orbit</span>
+            </div>
+            <div style={styles.headerActions}>
+              {saving && <span style={styles.savingIndicator}>Saving...</span>}
+              <button style={{...styles.viewToggle, ...(viewMode === 'galaxy' ? styles.viewToggleActive : {})}} onClick={() => setViewMode('galaxy')}>Galaxy</button>
+              <button style={{...styles.viewToggle, ...(viewMode === 'list' ? styles.viewToggleActive : {})}} onClick={() => setViewMode('list')}>List</button>
+              <button style={styles.settingsBtn} onClick={() => setShowSettings(true)}>⚙</button>
+              <button style={styles.signOutBtn} onClick={signOut}>Sign Out</button>
+            </div>
+          </header>
+          <div style={styles.filterBar}>
+            <button style={{...styles.filterBtn, ...(activeFilter === 'all' ? styles.filterBtnActive : {})}} onClick={() => setActiveFilter('all')}>All ({people.length})</button>
+            {allTags.map(tag => {
+              const count = people.filter(p => p.tags?.includes(tag)).length;
+              return <button key={tag} style={{...styles.filterBtn, ...(activeFilter === tag ? styles.filterBtnActive : {})}} onClick={() => setActiveFilter(tag)}>{tag} {count > 0 && `(${count})`}</button>;
+            })}
+          </div>
+          <main style={styles.main}>
+            {viewMode === 'galaxy' ? (
+              <GalaxyView sunName={sunName} people={positionedPeople} filteredIds={filteredPeople.map(p => p.id)} orbits={orbits} time={time} selectedPerson={selectedPerson} onSelectPerson={(p) => setSelectedPerson(people.find(pp => pp.id === p.id))} />
+            ) : (
+              <ListView people={filteredPeople} orbits={orbits} onSelectPerson={setSelectedPerson} />
+            )}
+            <button style={styles.addBtn} onClick={() => setShowAddForm(true)}>+ Add Person</button>
+          </main>
+          {selectedPerson && <DetailPanel person={selectedPerson} orbits={orbits} onClose={() => setSelectedPerson(null)} onUpdate={(updates) => updatePerson(selectedPerson.id, updates)} onDelete={() => deletePerson(selectedPerson.id)} onLogInteraction={(type, date, note) => logInteraction(selectedPerson.id, type, date, note)} allTags={allTags} />}
+          {showAddForm && <AddPersonModal orbits={orbits} allTags={allTags} onAdd={addPerson} onClose={() => setShowAddForm(false)} />}
+          {showSettings && <SettingsModal sunName={sunName} setSunName={setSunName} orbits={orbits} setOrbits={setOrbits} user={user} onClose={() => setShowSettings(false)} />}
+        </div>
+      );
+    }
+
+    // Configuration Warning Screen
+    function ConfigWarning() {
+      return (
+        <div style={styles.configWarning}>
+          <div style={styles.configWarningIcon}>⚠️</div>
+          <div style={styles.configWarningTitle}>Supabase Not Configured</div>
+          <div style={styles.configWarningText}>
+            Please configure your Supabase credentials in the HTML file. Look for SUPABASE_URL and SUPABASE_ANON_KEY near the top of the script section and replace them with your actual Supabase project values.
+          </div>
+        </div>
+      );
+    }
+
+    // Root App
+    function App() {
+      if (!isSupabaseConfigured()) {
+        return <ConfigWarning />;
+      }
+      
+      return (
+        <AuthProvider>
+          <AppRouter />
+        </AuthProvider>
+      );
+    }
+
+    function AppRouter() {
+      const { user, loading } = useAuth();
+      if (loading) return <div style={styles.loadingContainer}><div style={styles.loadingSpinner}>◉</div><p style={{ color: '#8892b0' }}>Loading...</p></div>;
+      return user ? <OrbitMain /> : <AuthScreen />;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
