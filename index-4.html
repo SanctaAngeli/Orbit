@@ -33,14 +33,17 @@
     const SUPABASE_URL = 'YOUR_SUPABASE_URL';
     const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
     
-    // Initialize Supabase client
-    // Important: Named 'supabaseClient' to avoid conflict with the global 'supabase' object from the CDN
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
     // Check if Supabase is configured
     const isSupabaseConfigured = () => {
       return SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
     };
+
+    // Initialize Supabase client only if configured
+    // Important: Named 'supabaseClient' to avoid conflict with the global 'supabase' object from the CDN
+    let supabaseClient = null;
+    if (isSupabaseConfigured()) {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
 
     // Auth Context
     const AuthContext = createContext(null);
