@@ -81,16 +81,87 @@
 
     const generateId = () => Math.random().toString(36).substr(2, 9);
 
-    // Styles object
-    const styles = {
+    // Interaction weights - how much each type "resets" the decay
+    // 1.0 = full reset, 0.25 = only 25% reduction in decay
+    const INTERACTION_WEIGHTS = {
+      seen: 1.0,    // In person = full reset
+      called: 0.5,  // Phone call = medium impact
+      texted: 0.25, // Text = low impact
+      email: 0.25,  // Email = low impact
+      social: 0.25  // Social media = low impact
+    };
+
+    // Theme definitions
+    const themes = {
+      dark: {
+        bg: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%)',
+        bgSolid: '#1a1a2e',
+        bgCard: 'rgba(20, 20, 40, 0.9)',
+        bgCardSolid: '#14142a',
+        bgInput: 'rgba(30, 30, 50, 0.8)',
+        bgTable: 'rgba(20, 20, 40, 0.6)',
+        bgFilter: 'rgba(30, 30, 50, 0.6)',
+        bgPanel: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+        text: '#e0e0e0',
+        textMuted: '#8892b0',
+        textSun: '#1a1a2e',
+        border: 'rgba(100, 149, 237, 0.1)',
+        borderLight: 'rgba(100, 149, 237, 0.2)',
+        borderMedium: 'rgba(100, 149, 237, 0.3)',
+        accent: 'rgba(100, 149, 237, 0.5)',
+        accentBg: 'rgba(100, 149, 237, 0.2)',
+        shadow: 'rgba(0, 0, 0, 0.5)',
+        shadowLight: 'rgba(0, 0, 0, 0.3)',
+        orbitStroke: 'rgba(100, 149, 237, 0.15)',
+        stars: `
+          radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.8) 0%, transparent 100%),
+          radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.6) 0%, transparent 100%),
+          radial-gradient(1px 1px at 50% 20%, rgba(255,255,255,0.7) 0%, transparent 100%),
+          radial-gradient(2px 2px at 60% 50%, rgba(255,255,255,0.5) 0%, transparent 100%),
+          radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.6) 0%, transparent 100%),
+          radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.7) 0%, transparent 100%),
+          radial-gradient(1px 1px at 90% 40%, rgba(255,255,255,0.5) 0%, transparent 100%),
+          radial-gradient(1px 1px at 10% 60%, rgba(255,255,255,0.6) 0%, transparent 100%)
+        `,
+        glowFilter: true,
+      },
+      light: {
+        bg: 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 50%, #dde4ed 100%)',
+        bgSolid: '#f0f2f5',
+        bgCard: 'rgba(255, 255, 255, 0.95)',
+        bgCardSolid: '#ffffff',
+        bgInput: 'rgba(240, 242, 245, 0.9)',
+        bgTable: 'rgba(255, 255, 255, 0.8)',
+        bgFilter: 'rgba(255, 255, 255, 0.7)',
+        bgPanel: 'linear-gradient(180deg, #ffffff 0%, #f5f7fa 100%)',
+        text: '#1a202c',
+        textMuted: '#64748b',
+        textSun: '#1a202c',
+        border: 'rgba(100, 116, 139, 0.15)',
+        borderLight: 'rgba(100, 116, 139, 0.1)',
+        borderMedium: 'rgba(100, 116, 139, 0.2)',
+        accent: 'rgba(59, 130, 246, 0.6)',
+        accentBg: 'rgba(59, 130, 246, 0.1)',
+        shadow: 'rgba(0, 0, 0, 0.1)',
+        shadowLight: 'rgba(0, 0, 0, 0.05)',
+        orbitStroke: 'rgba(100, 116, 139, 0.2)',
+        stars: 'none',
+        glowFilter: false,
+      }
+    };
+
+    // Generate styles based on theme
+    const getStyles = (theme = 'dark') => {
+      const t = themes[theme];
+      return {
       configWarning: {
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%)',
+        background: t.bg,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        color: '#e0e0e0',
+        color: t.text,
         padding: '40px',
         textAlign: 'center',
       },
@@ -106,18 +177,18 @@
       },
       configWarningText: {
         fontSize: '14px',
-        color: '#8892b0',
+        color: t.textMuted,
         maxWidth: '500px',
         lineHeight: '1.6',
       },
       loadingContainer: {
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%)',
+        background: t.bg,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        color: '#e0e0e0',
+        color: t.text,
       },
       loadingSpinner: {
         fontSize: '48px',
@@ -127,7 +198,7 @@
       },
       authContainer: {
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%)',
+        background: t.bg,
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
@@ -137,23 +208,17 @@
       authStars: {
         position: 'absolute',
         top: 0, left: 0, right: 0, bottom: 0,
-        background: `
-          radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.8) 0%, transparent 100%),
-          radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.6) 0%, transparent 100%),
-          radial-gradient(1px 1px at 50% 20%, rgba(255,255,255,0.7) 0%, transparent 100%),
-          radial-gradient(2px 2px at 60% 50%, rgba(255,255,255,0.5) 0%, transparent 100%),
-          radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.6) 0%, transparent 100%)
-        `,
+        background: t.stars,
         pointerEvents: 'none',
       },
       authCard: {
         width: '360px',
         maxWidth: '100%',
-        background: 'rgba(20, 20, 40, 0.9)',
+        background: t.bgCard,
         borderRadius: '20px',
         padding: '40px 32px',
-        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
-        border: '1px solid rgba(100, 149, 237, 0.1)',
+        boxShadow: `0 20px 60px ${t.shadow}`,
+        border: `1px solid ${t.border}`,
         position: 'relative',
         zIndex: 1,
       },
@@ -179,7 +244,7 @@
       },
       authSubtitle: {
         textAlign: 'center',
-        color: '#8892b0',
+        color: t.textMuted,
         fontSize: '14px',
         marginBottom: '32px',
       },
@@ -190,10 +255,10 @@
       },
       authInput: {
         padding: '14px 16px',
-        background: 'rgba(30, 30, 50, 0.8)',
-        border: '1px solid rgba(100, 149, 237, 0.3)',
+        background: t.bgInput,
+        border: `1px solid ${t.borderMedium}`,
         borderRadius: '12px',
-        color: '#e0e0e0',
+        color: t.text,
         fontSize: '15px',
         outline: 'none',
       },
@@ -281,24 +346,15 @@
       },
       container: {
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 50%, #16213e 100%)',
-        color: '#e0e0e0',
+        background: t.bg,
+        color: t.text,
         position: 'relative',
         overflow: 'hidden',
       },
       stars: {
         position: 'absolute',
         top: 0, left: 0, right: 0, bottom: 0,
-        background: `
-          radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.8) 0%, transparent 100%),
-          radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.6) 0%, transparent 100%),
-          radial-gradient(1px 1px at 50% 20%, rgba(255,255,255,0.7) 0%, transparent 100%),
-          radial-gradient(2px 2px at 60% 50%, rgba(255,255,255,0.5) 0%, transparent 100%),
-          radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.6) 0%, transparent 100%),
-          radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.7) 0%, transparent 100%),
-          radial-gradient(1px 1px at 90% 40%, rgba(255,255,255,0.5) 0%, transparent 100%),
-          radial-gradient(1px 1px at 10% 60%, rgba(255,255,255,0.6) 0%, transparent 100%)
-        `,
+        background: t.stars,
         pointerEvents: 'none',
       },
       header: {
@@ -306,7 +362,7 @@
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '20px 32px',
-        borderBottom: '1px solid rgba(100, 149, 237, 0.1)',
+        borderBottom: `1px solid ${t.border}`,
         position: 'relative',
         zIndex: 10,
         flexWrap: 'wrap',
@@ -338,29 +394,29 @@
       },
       savingIndicator: {
         fontSize: '12px',
-        color: '#8892b0',
+        color: t.textMuted,
         marginRight: '8px',
       },
       viewToggle: {
         padding: '8px 16px',
         background: 'transparent',
-        border: '1px solid rgba(100, 149, 237, 0.3)',
+        border: `1px solid ${t.borderMedium}`,
         borderRadius: '20px',
-        color: '#8892b0',
+        color: t.textMuted,
         cursor: 'pointer',
         fontSize: '13px',
       },
       viewToggleActive: {
-        background: 'rgba(100, 149, 237, 0.2)',
-        borderColor: 'rgba(100, 149, 237, 0.5)',
-        color: '#e0e0e0',
+        background: t.accentBg,
+        borderColor: t.accent,
+        color: t.text,
       },
       settingsBtn: {
         padding: '8px 12px',
         background: 'transparent',
-        border: '1px solid rgba(100, 149, 237, 0.3)',
+        border: `1px solid ${t.borderMedium}`,
         borderRadius: '8px',
-        color: '#8892b0',
+        color: t.textMuted,
         cursor: 'pointer',
         fontSize: '16px',
       },
@@ -383,18 +439,18 @@
       },
       filterBtn: {
         padding: '6px 14px',
-        background: 'rgba(30, 30, 50, 0.6)',
-        border: '1px solid rgba(100, 149, 237, 0.2)',
+        background: t.bgFilter,
+        border: `1px solid ${t.borderLight}`,
         borderRadius: '16px',
-        color: '#8892b0',
+        color: t.textMuted,
         cursor: 'pointer',
         fontSize: '12px',
         textTransform: 'capitalize',
       },
       filterBtnActive: {
-        background: 'rgba(100, 149, 237, 0.25)',
-        borderColor: 'rgba(100, 149, 237, 0.5)',
-        color: '#e0e0e0',
+        background: t.accentBg,
+        borderColor: t.accent,
+        color: t.text,
       },
       main: {
         display: 'flex',
@@ -439,7 +495,7 @@
       table: {
         width: '100%',
         borderCollapse: 'collapse',
-        background: 'rgba(20, 20, 40, 0.6)',
+        background: t.bgTable,
         borderRadius: '12px',
         overflow: 'hidden',
       },
@@ -450,15 +506,15 @@
         fontWeight: '600',
         textTransform: 'uppercase',
         letterSpacing: '1px',
-        color: '#8892b0',
-        borderBottom: '1px solid rgba(100, 149, 237, 0.1)',
+        color: t.textMuted,
+        borderBottom: `1px solid ${t.border}`,
       },
       tr: {
         cursor: 'pointer',
       },
       td: {
         padding: '14px 16px',
-        borderBottom: '1px solid rgba(100, 149, 237, 0.05)',
+        borderBottom: `1px solid ${t.borderLight}`,
         fontSize: '14px',
       },
       statusDot: {
@@ -477,12 +533,12 @@
         width: '32px',
         height: '32px',
         borderRadius: '50%',
-        background: 'rgba(100, 149, 237, 0.2)',
+        background: t.accentBg,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         fontSize: '14px',
-        color: '#8892b0',
+        color: t.textMuted,
       },
       tagContainer: {
         display: 'flex',
@@ -491,15 +547,15 @@
       },
       tagPill: {
         padding: '2px 8px',
-        background: 'rgba(100, 149, 237, 0.15)',
+        background: t.accentBg,
         borderRadius: '10px',
         fontSize: '11px',
-        color: '#8892b0',
+        color: t.textMuted,
       },
       emptyState: {
         textAlign: 'center',
         padding: '60px 20px',
-        color: '#8892b0',
+        color: t.textMuted,
         fontSize: '14px',
       },
       photoUploadContainer: {
@@ -527,7 +583,7 @@
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#8892b0',
+        color: t.textMuted,
       },
       photoPlaceholderIcon: {
         fontSize: '20px',
@@ -550,8 +606,8 @@
         width: '380px',
         maxWidth: '100%',
         height: '100vh',
-        background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
-        boxShadow: '-4px 0 30px rgba(0, 0, 0, 0.4)',
+        background: t.bgPanel,
+        boxShadow: `-4px 0 30px ${t.shadow}`,
         zIndex: 200,
         overflowY: 'auto',
         padding: '24px',
@@ -565,7 +621,7 @@
       closeBtn: {
         background: 'none',
         border: 'none',
-        color: '#8892b0',
+        color: t.textMuted,
         fontSize: '24px',
         cursor: 'pointer',
         padding: '4px',
@@ -581,12 +637,12 @@
         width: '80px',
         height: '80px',
         borderRadius: '50%',
-        background: 'rgba(100, 149, 237, 0.2)',
+        background: t.accentBg,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         fontSize: '32px',
-        color: '#8892b0',
+        color: t.textMuted,
         marginBottom: '16px',
       },
       detailName: {
@@ -596,16 +652,16 @@
       },
       detailOrbit: {
         fontSize: '13px',
-        color: '#8892b0',
+        color: t.textMuted,
         marginBottom: '20px',
       },
       orbitSelect: {
         marginLeft: '8px',
         padding: '4px 8px',
-        background: 'rgba(30, 30, 50, 0.8)',
-        border: '1px solid rgba(100, 149, 237, 0.3)',
+        background: t.bgInput,
+        border: `1px solid ${t.borderMedium}`,
         borderRadius: '6px',
-        color: '#e0e0e0',
+        color: t.text,
         fontSize: '12px',
       },
       sectionTitle: {
@@ -613,11 +669,11 @@
         fontWeight: '600',
         textTransform: 'uppercase',
         letterSpacing: '1px',
-        color: '#8892b0',
+        color: t.textMuted,
         marginBottom: '12px',
       },
       statsBox: {
-        background: 'rgba(30, 30, 50, 0.5)',
+        background: t.bgInput,
         borderRadius: '12px',
         padding: '16px',
         marginBottom: '24px',
@@ -628,11 +684,11 @@
         marginBottom: '8px',
       },
       statLabel: {
-        color: '#8892b0',
+        color: t.textMuted,
         fontSize: '13px',
       },
       statValue: {
-        color: '#e0e0e0',
+        color: t.text,
         fontSize: '13px',
       },
       quickActions: {
@@ -672,18 +728,18 @@
       },
       tagToggle: {
         padding: '6px 12px',
-        background: 'rgba(30, 30, 50, 0.6)',
-        border: '1px solid rgba(100, 149, 237, 0.2)',
+        background: t.bgFilter,
+        border: `1px solid ${t.borderLight}`,
         borderRadius: '14px',
-        color: '#8892b0',
+        color: t.textMuted,
         fontSize: '12px',
         cursor: 'pointer',
         textTransform: 'capitalize',
       },
       tagToggleActive: {
-        background: 'rgba(100, 149, 237, 0.3)',
-        borderColor: 'rgba(100, 149, 237, 0.5)',
-        color: '#e0e0e0',
+        background: t.accentBg,
+        borderColor: t.accent,
+        color: t.text,
       },
       logSection: {
         marginBottom: '24px',
@@ -799,7 +855,7 @@
       modalOverlay: {
         position: 'fixed',
         top: 0, left: 0, right: 0, bottom: 0,
-        background: 'rgba(0, 0, 0, 0.8)',
+        background: 'rgba(0, 0, 0, 0.7)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
@@ -810,17 +866,17 @@
         width: '440px',
         maxWidth: '100%',
         maxHeight: '90vh',
-        background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)',
+        background: t.bgPanel,
         borderRadius: '16px',
         padding: '28px',
         overflowY: 'auto',
-        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4)',
+        boxShadow: `0 20px 60px ${t.shadow}`,
       },
       modalTitle: {
         fontSize: '20px',
         fontWeight: '600',
         marginBottom: '24px',
-        color: '#e0e0e0',
+        color: t.text,
       },
       formGroup: {
         marginBottom: '20px',
@@ -831,26 +887,26 @@
         fontWeight: '600',
         textTransform: 'uppercase',
         letterSpacing: '1px',
-        color: '#8892b0',
+        color: t.textMuted,
         marginBottom: '8px',
       },
       input: {
         width: '100%',
         padding: '12px 14px',
-        background: 'rgba(30, 30, 50, 0.8)',
-        border: '1px solid rgba(100, 149, 237, 0.3)',
+        background: t.bgInput,
+        border: `1px solid ${t.borderMedium}`,
         borderRadius: '10px',
-        color: '#e0e0e0',
+        color: t.text,
         fontSize: '14px',
         boxSizing: 'border-box',
       },
       select: {
         width: '100%',
         padding: '12px 14px',
-        background: 'rgba(30, 30, 50, 0.8)',
-        border: '1px solid rgba(100, 149, 237, 0.3)',
+        background: t.bgInput,
+        border: `1px solid ${t.borderMedium}`,
         borderRadius: '10px',
-        color: '#e0e0e0',
+        color: t.text,
         fontSize: '14px',
         boxSizing: 'border-box',
       },
@@ -868,9 +924,9 @@
         flex: 1,
         padding: '12px',
         background: 'transparent',
-        border: '1px solid rgba(100, 149, 237, 0.3)',
+        border: `1px solid ${t.borderMedium}`,
         borderRadius: '10px',
-        color: '#8892b0',
+        color: t.textMuted,
         fontSize: '14px',
         cursor: 'pointer',
       },
@@ -880,13 +936,13 @@
         background: 'linear-gradient(135deg, rgba(100, 149, 237, 0.5) 0%, rgba(70, 119, 207, 0.5) 100%)',
         border: 'none',
         borderRadius: '10px',
-        color: '#e0e0e0',
+        color: '#fff',
         fontSize: '14px',
         fontWeight: '600',
         cursor: 'pointer',
       },
       accountInfo: {
-        background: 'rgba(30, 30, 50, 0.5)',
+        background: t.bgInput,
         borderRadius: '10px',
         padding: '16px',
         marginBottom: '24px',
@@ -952,16 +1008,29 @@
       },
       daysLabel: {
         fontSize: '12px',
-        color: '#8892b0',
+        color: t.textMuted,
       },
     };
+    };
+
+    // Default styles for non-themed contexts
+    const styles = getStyles('dark');
 
     // Auth Provider with Supabase
     function AuthProvider({ children }) {
       const [user, setUser] = useState(null);
       const [loading, setLoading] = useState(true);
+      const [debugMode, setDebugMode] = useState(false);
 
       useEffect(() => {
+        // Check for debug mode in localStorage
+        if (localStorage.getItem('orbit_debug_mode') === 'true') {
+          setUser({ id: 'debug-user', email: 'debug@local.dev' });
+          setDebugMode(true);
+          setLoading(false);
+          return;
+        }
+
         // Get initial session
         supabaseClient.auth.getSession().then(({ data: { session } }) => {
           setUser(session?.user ?? null);
@@ -995,12 +1064,24 @@
       };
 
       const signOut = async () => {
+        if (debugMode) {
+          localStorage.removeItem('orbit_debug_mode');
+          setDebugMode(false);
+          setUser(null);
+          return;
+        }
         const { error } = await supabaseClient.auth.signOut();
         if (error) throw error;
       };
 
+      const enterDebugMode = () => {
+        localStorage.setItem('orbit_debug_mode', 'true');
+        setDebugMode(true);
+        setUser({ id: 'debug-user', email: 'debug@local.dev' });
+      };
+
       return (
-        <AuthContext.Provider value={{ user, loading, signUp, signIn, signOut }}>
+        <AuthContext.Provider value={{ user, loading, signUp, signIn, signOut, debugMode, enterDebugMode }}>
           {children}
         </AuthContext.Provider>
       );
@@ -1014,7 +1095,7 @@
       const [error, setError] = useState('');
       const [message, setMessage] = useState('');
       const [loading, setLoading] = useState(false);
-      const { signIn, signUp } = useAuth();
+      const { signIn, signUp, enterDebugMode } = useAuth();
 
       const handleSubmit = async (e) => {
         e.preventDefault();
@@ -1126,12 +1207,21 @@
               </button>
             )}
             
-            <button 
+            <button
               style={styles.authToggle}
               onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setMessage(''); }}
             >
               {mode === 'forgot' ? 'Back to sign in' : mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
             </button>
+
+            <div style={{marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(100, 149, 237, 0.2)'}}>
+              <button
+                style={{...styles.authToggle, marginTop: 0, color: '#f59e0b'}}
+                onClick={enterDebugMode}
+              >
+                🔧 Enter Debug Mode (Local Testing)
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -1190,10 +1280,11 @@
     }
 
     // Galaxy View
-    function GalaxyView({ sunName, people, filteredIds, orbits, time, selectedPerson, onSelectPerson }) {
+    function GalaxyView({ sunName, people, filteredIds, orbits, time, selectedPerson, onSelectPerson, theme = 'dark' }) {
       const containerRef = useRef(null);
       const [dimensions, setDimensions] = useState({ width: 600, height: 600 });
-      
+      const t = themes[theme];
+
       useEffect(() => {
         const updateDimensions = () => {
           if (containerRef.current) {
@@ -1205,18 +1296,18 @@
         window.addEventListener('resize', updateDimensions);
         return () => window.removeEventListener('resize', updateDimensions);
       }, []);
-      
+
       const size = Math.min(dimensions.width, dimensions.height);
       const center = size / 2;
       const maxOrbitRadius = (size / 2) - 40;
       const sunRadius = 25;
-      
+
       const getOrbitRadius = (orbitId) => {
         const index = orbits.findIndex(o => o.id === orbitId);
         if (index === -1) return maxOrbitRadius;
         return sunRadius + 30 + ((index + 1) / orbits.length) * (maxOrbitRadius - sunRadius - 30);
       };
-      
+
       return (
         <div ref={containerRef} style={styles.galaxyContainer}>
           <svg width={size} height={size} style={styles.galaxySvg}>
@@ -1239,21 +1330,21 @@
                 cy={center}
                 r={getOrbitRadius(orbit.id)}
                 fill="none"
-                stroke="rgba(100, 149, 237, 0.15)"
+                stroke={t.orbitStroke}
                 strokeWidth="1"
                 strokeDasharray="4 4"
               />
             ))}
-            
-            <circle cx={center} cy={center} r={sunRadius} fill="url(#sunGradient)" filter="url(#glow)" style={{ cursor: 'default' }} />
-            <text x={center} y={center + 4} textAnchor="middle" fill="#1a1a2e" fontSize="10" fontWeight="600">{sunName}</text>
+
+            <circle cx={center} cy={center} r={sunRadius} fill="url(#sunGradient)" filter={t.glowFilter ? "url(#glow)" : undefined} style={{ cursor: 'default' }} />
+            <text x={center} y={center + 4} textAnchor="middle" fill={t.textSun} fontSize="10" fontWeight="600">{sunName}</text>
             
             {people.map((person) => {
               const isFiltered = filteredIds.includes(person.id);
               const orbitRadius = getOrbitRadius(person.orbitId);
               const baseAngle = person.calculatedAngle || 0;
-              const orbitIndex = orbits.findIndex(o => o.id === person.orbitId);
-              const orbitSpeed = 0.2 + (orbitIndex * 0.1);
+              // Slow, uniform orbital speed for calm ambient motion (~11 min full orbit)
+              const orbitSpeed = 0.08;
               const angle = baseAngle + time * orbitSpeed;
               const x = center + Math.cos(angle) * orbitRadius;
               const y = center + Math.sin(angle) * orbitRadius;
@@ -1266,7 +1357,7 @@
               
               return (
                 <g key={person.id} style={{ opacity: isFiltered ? 1 : 0.2, cursor: 'pointer' }} onClick={() => isFiltered && onSelectPerson(person)}>
-                  <circle cx={x} cy={y} r={planetRadius + 3} fill={color} opacity="0.3" filter="url(#glow)" />
+                  <circle cx={x} cy={y} r={planetRadius + 3} fill={color} opacity="0.3" filter={t.glowFilter ? "url(#glow)" : undefined} />
                   <circle cx={x} cy={y} r={planetRadius} fill={person.photo ? 'none' : color} stroke={color} strokeWidth="2" />
                   {person.photo && (
                     <clipPath id={`clip-${person.id}`}><circle cx={x} cy={y} r={planetRadius - 1} /></clipPath>
@@ -1274,7 +1365,7 @@
                   {person.photo && (
                     <image href={person.photo} x={x - planetRadius + 1} y={y - planetRadius + 1} width={(planetRadius - 1) * 2} height={(planetRadius - 1) * 2} clipPath={`url(#clip-${person.id})`} preserveAspectRatio="xMidYMid slice" />
                   )}
-                  <text x={x} y={y + planetRadius + 14} textAnchor="middle" fill="#e0e0e0" fontSize="10" fontWeight="500">{person.name.split(' ')[0]}</text>
+                  <text x={x} y={y + planetRadius + 14} textAnchor="middle" fill={t.text} fontSize="10" fontWeight="500">{person.name.split(' ')[0]}</text>
                 </g>
               );
             })}
@@ -1284,9 +1375,10 @@
     }
 
     // List View
-    function ListView({ people, orbits, onSelectPerson }) {
+    function ListView({ people, orbits, onSelectPerson, theme = 'dark' }) {
+      const t = themes[theme];
       if (people.length === 0) {
-        return <div style={styles.emptyState}>No people in your orbit yet. Add someone to get started!</div>;
+        return <div style={{...styles.emptyState, color: t.textMuted}}>No people in your orbit yet. Add someone to get started!</div>;
       }
       
       const sortedPeople = [...people].sort((a, b) => {
@@ -1389,8 +1481,8 @@
           
           <div style={styles.sectionTitle}>Quick Actions</div>
           <div style={styles.quickActions}>
-            <button style={styles.actionBtnSeen} onClick={() => onLogInteraction('seen')}>👋 Saw Today</button>
-            <button style={styles.actionBtnTexted} onClick={() => onLogInteraction('texted')}>💬 Texted</button>
+            <button style={styles.actionBtnSeen} onClick={() => onLogInteraction('seen')} title="Full reset - resets decay timer completely">👋 Saw Today</button>
+            <button style={styles.actionBtnTexted} onClick={() => onLogInteraction('texted')} title="Partial reset - reduces decay by 25%">💬 Texted</button>
           </div>
           
           <div style={styles.tagsSection}>
@@ -1500,47 +1592,312 @@
       );
     }
 
+    // JSON Import Modal
+    function ImportModal({ orbits, onImport, onClose, themedStyles, theme = 'dark' }) {
+      const [jsonInput, setJsonInput] = useState('');
+      const [error, setError] = useState('');
+      const [preview, setPreview] = useState([]);
+      const s = themedStyles;
+
+      // Map flexible orbit names to orbit IDs
+      const mapOrbitName = (orbitName) => {
+        if (!orbitName) return 'C'; // Default to "Good Friends"
+        const normalized = orbitName.toLowerCase().trim();
+
+        // Try exact match first
+        const exactMatch = orbits.find(o => o.name.toLowerCase() === normalized);
+        if (exactMatch) return exactMatch.id;
+
+        // Try partial match
+        const partialMatch = orbits.find(o =>
+          o.name.toLowerCase().includes(normalized) || normalized.includes(o.name.toLowerCase())
+        );
+        if (partialMatch) return partialMatch.id;
+
+        // Try matching orbit ID directly (A, B, C, etc.)
+        const idMatch = orbits.find(o => o.id.toLowerCase() === normalized);
+        if (idMatch) return idMatch.id;
+
+        return 'C'; // Default fallback
+      };
+
+      // Parse and validate JSON input
+      const parseJson = () => {
+        setError('');
+        setPreview([]);
+
+        if (!jsonInput.trim()) {
+          setError('Please paste JSON data');
+          return;
+        }
+
+        try {
+          const data = JSON.parse(jsonInput);
+          const items = Array.isArray(data) ? data : [data];
+
+          if (items.length === 0) {
+            setError('No people found in JSON');
+            return;
+          }
+
+          const parsed = items.map((item, index) => {
+            // Flexible field mapping
+            const name = item.name || item.Name || item.fullName || item.full_name;
+            if (!name) {
+              throw new Error(`Item ${index + 1}: Missing name field`);
+            }
+
+            // Map orbit (flexible naming)
+            const orbitInput = item.orbit || item.Orbit || item.ring || item.Ring || item.category || item.Category;
+            const orbitId = mapOrbitName(orbitInput);
+
+            // Handle dates (flexible field names)
+            const lastSeen = item.lastSeen || item.last_seen || item.lastSeenDate || item.seenDate;
+            const lastTexted = item.lastTexted || item.last_texted || item.lastTextedDate || item.textedDate;
+            const lastContact = item.lastContact || item.last_contact || item.lastContactDate;
+
+            // Determine effective contact date
+            // Priority: lastSeen (full weight) > lastContact > lastTexted (partial weight)
+            let effectiveDate = null;
+            const logs = [];
+
+            if (lastSeen) {
+              logs.push({ id: generateId(), date: lastSeen, type: 'seen', note: 'Imported' });
+              effectiveDate = lastSeen;
+            }
+            if (lastTexted) {
+              logs.push({ id: generateId(), date: lastTexted, type: 'texted', note: 'Imported' });
+              // Only use texted date if no seen date, and apply weight
+              if (!effectiveDate) {
+                effectiveDate = lastTexted;
+              }
+            }
+            if (lastContact && !effectiveDate) {
+              logs.push({ id: generateId(), date: lastContact, type: 'seen', note: 'Imported' });
+              effectiveDate = lastContact;
+            }
+
+            // Handle tags (flexible formats)
+            let tags = item.tags || item.Tags || item.categories || item.groups || [];
+            if (typeof tags === 'string') {
+              tags = tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+            } else if (Array.isArray(tags)) {
+              tags = tags.map(t => String(t).trim().toLowerCase()).filter(Boolean);
+            }
+
+            // Handle photo
+            const photo = item.photo || item.Photo || item.image || item.avatar || null;
+
+            return {
+              id: generateId(),
+              name: name.trim(),
+              orbitId,
+              orbitName: orbits.find(o => o.id === orbitId)?.name || orbitId,
+              lastContactDate: effectiveDate,
+              logs: logs.sort((a, b) => b.date.localeCompare(a.date)),
+              tags,
+              photo
+            };
+          });
+
+          setPreview(parsed);
+        } catch (err) {
+          setError(err.message || 'Invalid JSON format');
+        }
+      };
+
+      const handleImport = () => {
+        if (preview.length === 0) {
+          setError('Please preview data first');
+          return;
+        }
+        onImport(preview.map(p => ({
+          id: p.id,
+          name: p.name,
+          orbitId: p.orbitId,
+          lastContactDate: p.lastContactDate,
+          logs: p.logs,
+          tags: p.tags,
+          photo: p.photo
+        })));
+        onClose();
+      };
+
+      const exampleJson = `[
+  {
+    "name": "Alice Smith",
+    "orbit": "Close Friends",
+    "lastSeen": "2025-01-10",
+    "tags": ["work", "friend"]
+  },
+  {
+    "name": "Bob Jones",
+    "orbit": "Acquaintances",
+    "lastTexted": "2025-01-15"
+  }
+]`;
+
+      return (
+        <div style={s.modalOverlay} onClick={onClose}>
+          <div style={{...s.modal, width: '560px'}} onClick={e => e.stopPropagation()}>
+            <h2 style={s.modalTitle}>Import People via JSON</h2>
+
+            <div style={s.formGroup}>
+              <label style={s.label}>Paste JSON Data</label>
+              <textarea
+                style={{...s.input, minHeight: '150px', fontFamily: 'monospace', fontSize: '12px', resize: 'vertical'}}
+                value={jsonInput}
+                onChange={e => setJsonInput(e.target.value)}
+                placeholder={exampleJson}
+              />
+            </div>
+
+            {error && (
+              <div style={{
+                padding: '10px 14px',
+                background: 'rgba(255, 100, 100, 0.1)',
+                border: '1px solid rgba(255, 100, 100, 0.3)',
+                borderRadius: '8px',
+                color: '#ff6b6b',
+                fontSize: '13px',
+                marginBottom: '16px'
+              }}>
+                {error}
+              </div>
+            )}
+
+            {preview.length > 0 && (
+              <div style={{marginBottom: '16px'}}>
+                <label style={s.label}>Preview ({preview.length} people)</label>
+                <div style={{
+                  background: themes[theme].bgInput,
+                  borderRadius: '8px',
+                  padding: '12px',
+                  maxHeight: '200px',
+                  overflowY: 'auto'
+                }}>
+                  {preview.map((p, i) => (
+                    <div key={i} style={{
+                      padding: '8px 0',
+                      borderBottom: i < preview.length - 1 ? '1px solid rgba(128,128,128,0.2)' : 'none',
+                      fontSize: '13px'
+                    }}>
+                      <strong>{p.name}</strong>
+                      <span style={{color: '#8892b0', marginLeft: '8px'}}>→ {p.orbitName}</span>
+                      {p.tags.length > 0 && (
+                        <span style={{color: '#8892b0', marginLeft: '8px'}}>
+                          [{p.tags.join(', ')}]
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{fontSize: '12px', color: '#8892b0', marginBottom: '16px'}}>
+              <strong>Supported fields:</strong> name, orbit, lastSeen, lastTexted, lastContact, tags, photo
+            </div>
+
+            <div style={s.modalActions}>
+              <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
+              {preview.length === 0 ? (
+                <button style={s.submitBtn} onClick={parseJson}>Preview</button>
+              ) : (
+                <button style={s.submitBtn} onClick={handleImport}>Import {preview.length} People</button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Settings Modal
-    function SettingsModal({ sunName, setSunName, orbits, setOrbits, user, onClose }) {
+    function SettingsModal({ sunName, setSunName, orbits, setOrbits, user, onClose, saveNow, saveStatus, theme, setTheme, themedStyles, onOpenImport }) {
       const [localSunName, setLocalSunName] = useState(sunName);
       const [localOrbits, setLocalOrbits] = useState([...orbits]);
-      
+      const s = themedStyles;
+
       const updateOrbit = (index, field, value) => {
         const updated = [...localOrbits];
         updated[index] = { ...updated[index], [field]: field === 'decayDays' ? parseInt(value) || 1 : value };
         setLocalOrbits(updated);
       };
-      
+
       return (
-        <div style={styles.modalOverlay} onClick={onClose}>
-          <div style={styles.modal} onClick={e => e.stopPropagation()}>
-            <h2 style={styles.modalTitle}>Settings</h2>
-            <div style={styles.accountInfo}>
-              <span style={styles.accountLabel}>Signed in as:</span>
-              <span style={styles.accountEmail}>{user?.email}</span>
+        <div style={s.modalOverlay} onClick={onClose}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
+            <h2 style={s.modalTitle}>Settings</h2>
+            <div style={s.accountInfo}>
+              <span style={s.accountLabel}>Signed in as:</span>
+              <span style={s.accountEmail}>{user?.email}</span>
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Your Name (Sun Label)</label>
-              <input type="text" style={styles.input} value={localSunName} onChange={e => setLocalSunName(e.target.value)} />
+            <div style={s.formGroup}>
+              <label style={s.label}>Your Name (Sun Label)</label>
+              <input type="text" style={s.input} value={localSunName} onChange={e => setLocalSunName(e.target.value)} />
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Orbit Rings</label>
-              <div style={styles.orbitsList}>
+            <div style={s.formGroup}>
+              <label style={s.label}>Appearance</label>
+              <div style={{display: 'flex', gap: '10px'}}>
+                <button
+                  style={{
+                    ...s.viewToggle,
+                    ...(theme === 'dark' ? s.viewToggleActive : {}),
+                    flex: 1
+                  }}
+                  onClick={() => setTheme('dark')}
+                >
+                  Dark
+                </button>
+                <button
+                  style={{
+                    ...s.viewToggle,
+                    ...(theme === 'light' ? s.viewToggleActive : {}),
+                    flex: 1
+                  }}
+                  onClick={() => setTheme('light')}
+                >
+                  Light
+                </button>
+              </div>
+            </div>
+            <div style={s.formGroup}>
+              <label style={s.label}>Orbit Rings</label>
+              <div style={s.orbitsList}>
                 {localOrbits.map((orbit, i) => (
-                  <div key={orbit.id} style={styles.orbitRow}>
-                    <span style={styles.orbitId}>{orbit.id}</span>
-                    <input type="text" style={styles.orbitNameInput} value={orbit.name} onChange={e => updateOrbit(i, 'name', e.target.value)} />
-                    <div style={styles.daysInputWrapper}>
-                      <input type="number" style={styles.daysInput} value={orbit.decayDays} onChange={e => updateOrbit(i, 'decayDays', e.target.value)} min="1" />
-                      <span style={styles.daysLabel}>days</span>
+                  <div key={orbit.id} style={s.orbitRow}>
+                    <span style={s.orbitId}>{orbit.id}</span>
+                    <input type="text" style={s.orbitNameInput} value={orbit.name} onChange={e => updateOrbit(i, 'name', e.target.value)} />
+                    <div style={s.daysInputWrapper}>
+                      <input type="number" style={s.daysInput} value={orbit.decayDays} onChange={e => updateOrbit(i, 'decayDays', e.target.value)} min="1" />
+                      <span style={s.daysLabel}>days</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div style={styles.modalActions}>
-              <button style={styles.cancelBtn} onClick={onClose}>Cancel</button>
-              <button style={styles.submitBtn} onClick={() => { setSunName(localSunName); setOrbits(localOrbits); onClose(); }}>Save Changes</button>
+            <div style={{...s.formGroup, borderTop: '1px solid rgba(128,128,128,0.2)', paddingTop: '16px', marginTop: '8px'}}>
+              <label style={s.label}>Data Management</label>
+              <div style={{display: 'flex', gap: '10px', marginBottom: '12px'}}>
+                <button
+                  style={{...s.submitBtn, flex: 1, opacity: saveStatus === 'saving' ? 0.6 : 1}}
+                  onClick={saveNow}
+                  disabled={saveStatus === 'saving'}
+                >
+                  {saveStatus === 'saving' ? 'Saving...' : 'Save Now'}
+                </button>
+                <button
+                  style={{...s.submitBtn, flex: 1, background: 'linear-gradient(135deg, rgba(74, 85, 104, 0.5) 0%, rgba(45, 55, 72, 0.5) 100%)'}}
+                  onClick={onOpenImport}
+                >
+                  Import JSON
+                </button>
+              </div>
+              <p style={{fontSize: '12px', color: themes[theme].textMuted}}>Data auto-saves after changes. Use Import to bulk-add people from JSON.</p>
+            </div>
+            <div style={s.modalActions}>
+              <button style={s.cancelBtn} onClick={onClose}>Cancel</button>
+              <button style={s.submitBtn} onClick={() => { setSunName(localSunName); setOrbits(localOrbits); onClose(); }}>Save Changes</button>
             </div>
           </div>
         </div>
@@ -1549,18 +1906,25 @@
 
     // Main App
     function OrbitMain() {
-      const { user, signOut } = useAuth();
+      const { user, signOut, debugMode } = useAuth();
       const [sunName, setSunName] = useState('Me');
       const [people, setPeople] = useState([]);
       const [orbits, setOrbits] = useState(DEFAULT_ORBITS);
+      const [theme, setTheme] = useState('dark'); // 'dark' | 'light'
       const [selectedPerson, setSelectedPerson] = useState(null);
       const [activeFilter, setActiveFilter] = useState('all');
       const [showAddForm, setShowAddForm] = useState(false);
       const [showSettings, setShowSettings] = useState(false);
+      const [showImport, setShowImport] = useState(false);
       const [viewMode, setViewMode] = useState('galaxy');
       const [time, setTime] = useState(0);
       const [dataLoaded, setDataLoaded] = useState(false);
-      const [saving, setSaving] = useState(false);
+      const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+      const [saveError, setSaveError] = useState(null);
+      const isInitialLoad = React.useRef(true);
+
+      // Generate themed styles
+      const themedStyles = useMemo(() => getStyles(theme), [theme]);
       
       // Animation loop
       useEffect(() => {
@@ -1579,57 +1943,98 @@
       
       const loadUserData = async () => {
         try {
+          // Debug mode: use localStorage
+          if (debugMode) {
+            const saved = localStorage.getItem('orbit_debug_data');
+            if (saved) {
+              const data = JSON.parse(saved);
+              if (data.sunName) setSunName(data.sunName);
+              if (data.people) setPeople(data.people);
+              if (data.orbits) setOrbits(data.orbits);
+              if (data.theme) setTheme(data.theme);
+            }
+            setDataLoaded(true);
+            setTimeout(() => { isInitialLoad.current = false; }, 100);
+            return;
+          }
+
           const { data, error } = await supabaseClient
             .from('user_saves')
             .select('save_data')
             .eq('user_id', user.id)
             .single();
-          
+
           if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
             console.error('Error loading data:', error);
+            setSaveError('Failed to load data: ' + error.message);
+            setSaveStatus('error');
           }
-          
+
           if (data?.save_data) {
             if (data.save_data.sunName) setSunName(data.save_data.sunName);
             if (data.save_data.people) setPeople(data.save_data.people);
             if (data.save_data.orbits) setOrbits(data.save_data.orbits);
+            if (data.save_data.theme) setTheme(data.save_data.theme);
           }
         } catch (err) {
           console.error('Error loading data:', err);
+          setSaveError('Failed to load data: ' + err.message);
+          setSaveStatus('error');
         } finally {
           setDataLoaded(true);
+          // Mark initial load complete after a brief delay to allow state to settle
+          setTimeout(() => { isInitialLoad.current = false; }, 100);
         }
       };
       
-      // Save data to Supabase (debounced)
+      // Save data to Supabase (debounced) or localStorage in debug mode
       useEffect(() => {
         if (!dataLoaded || !user?.id) return;
-        
-        setSaving(true);
+
+        // Skip saving during initial load to avoid re-saving just-loaded data
+        if (isInitialLoad.current) return;
+
+        setSaveStatus('saving');
+        setSaveError(null);
+
         const timeout = setTimeout(async () => {
           try {
+            // Debug mode: use localStorage
+            if (debugMode) {
+              localStorage.setItem('orbit_debug_data', JSON.stringify({ sunName, people, orbits, theme }));
+              setSaveStatus('saved');
+              setTimeout(() => setSaveStatus('idle'), 2000);
+              return;
+            }
+
             const { error } = await supabaseClient
               .from('user_saves')
               .upsert({
                 user_id: user.id,
-                save_data: { sunName, people, orbits },
+                save_data: { sunName, people, orbits, theme },
                 updated_at: new Date().toISOString()
               }, {
                 onConflict: 'user_id'
               });
-            
+
             if (error) {
               console.error('Error saving data:', error);
+              setSaveError(error.message);
+              setSaveStatus('error');
+            } else {
+              setSaveStatus('saved');
+              // Reset to idle after showing "Saved" briefly
+              setTimeout(() => setSaveStatus('idle'), 2000);
             }
           } catch (err) {
             console.error('Error saving data:', err);
-          } finally {
-            setSaving(false);
+            setSaveError(err.message);
+            setSaveStatus('error');
           }
         }, 500);
-        
+
         return () => clearTimeout(timeout);
-      }, [sunName, people, orbits, user?.id, dataLoaded]);
+      }, [sunName, people, orbits, theme, user?.id, dataLoaded, debugMode]);
       
       const getPeopleWithPositions = useCallback(() => {
         const orbitGroups = {};
@@ -1665,59 +2070,130 @@
         setPeople(people.filter(p => p.id !== id));
         if (selectedPerson?.id === id) setSelectedPerson(null);
       };
+
+      const importPeople = (importedPeople) => {
+        setPeople([...people, ...importedPeople]);
+      };
       
       const logInteraction = (personId, type, date = new Date().toISOString().split('T')[0], note = '') => {
         setPeople(people.map(p => {
           if (p.id !== personId) return p;
           const newLog = { id: generateId(), date, type, note };
           const logs = [newLog, ...(p.logs || [])];
-          const lastContactDate = logs.reduce((latest, log) => (!latest || log.date > latest ? log.date : latest), null);
-          return { ...p, logs, lastContactDate };
+
+          // Calculate effective contact date based on interaction weight
+          const weight = INTERACTION_WEIGHTS[type] || 0.25;
+          const currentEffectiveDate = p.lastContactDate;
+
+          let newEffectiveDate;
+          if (weight >= 1.0) {
+            // Full reset - set to interaction date (e.g., seen in person)
+            newEffectiveDate = date;
+          } else {
+            // Partial reset - reduce the "decay debt" by the weight percentage
+            const daysSinceLast = daysSince(currentEffectiveDate);
+            if (daysSinceLast === 999 || !currentEffectiveDate) {
+              // No previous contact - this interaction becomes the baseline
+              newEffectiveDate = date;
+            } else {
+              // E.g., if 20 days since last contact and texting (25% weight):
+              // New effective = today - (20 * 0.75) = effectively 15 days ago
+              const remainingDebt = Math.floor(daysSinceLast * (1 - weight));
+              const interactionDate = new Date(date);
+              const effectiveDate = new Date(interactionDate);
+              effectiveDate.setDate(effectiveDate.getDate() - remainingDebt);
+              newEffectiveDate = effectiveDate.toISOString().split('T')[0];
+            }
+          }
+
+          return { ...p, logs, lastContactDate: newEffectiveDate };
         }));
       };
-      
+
+      // Manual save function for retry/force save
+      const saveNow = async () => {
+        if (!user?.id) return;
+        setSaveStatus('saving');
+        setSaveError(null);
+        try {
+          // Debug mode: use localStorage
+          if (debugMode) {
+            localStorage.setItem('orbit_debug_data', JSON.stringify({ sunName, people, orbits, theme }));
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus('idle'), 2000);
+            return;
+          }
+
+          const { error } = await supabaseClient
+            .from('user_saves')
+            .upsert({
+              user_id: user.id,
+              save_data: { sunName, people, orbits, theme },
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id'
+            });
+          if (error) {
+            console.error('Error saving data:', error);
+            setSaveError(error.message);
+            setSaveStatus('error');
+          } else {
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus('idle'), 2000);
+          }
+        } catch (err) {
+          console.error('Error saving data:', err);
+          setSaveError(err.message);
+          setSaveStatus('error');
+        }
+      };
+
       const filteredPeople = activeFilter === 'all' ? people : people.filter(p => p.tags?.includes(activeFilter));
       const allTags = [...new Set([...DEFAULT_TAGS, ...people.flatMap(p => p.tags || [])])];
       const positionedPeople = getPeopleWithPositions();
       
       if (!dataLoaded) {
-        return <div style={styles.loadingContainer}><div style={styles.loadingSpinner}>◉</div><p>Loading your orbit...</p></div>;
+        return <div style={themedStyles.loadingContainer}><div style={themedStyles.loadingSpinner}>◉</div><p>Loading your orbit...</p></div>;
       }
-      
+
       return (
-        <div style={styles.container}>
-          <div style={styles.stars} />
-          <header style={styles.header}>
-            <div style={styles.logo}>
-              <span style={styles.logoIcon}>◉</span>
-              <span style={styles.logoText}>Orbit</span>
+        <div style={themedStyles.container}>
+          <div style={themedStyles.stars} />
+          <header style={themedStyles.header}>
+            <div style={themedStyles.logo}>
+              <span style={themedStyles.logoIcon}>◉</span>
+              <span style={themedStyles.logoText}>Orbit</span>
             </div>
-            <div style={styles.headerActions}>
-              {saving && <span style={styles.savingIndicator}>Saving...</span>}
-              <button style={{...styles.viewToggle, ...(viewMode === 'galaxy' ? styles.viewToggleActive : {})}} onClick={() => setViewMode('galaxy')}>Galaxy</button>
-              <button style={{...styles.viewToggle, ...(viewMode === 'list' ? styles.viewToggleActive : {})}} onClick={() => setViewMode('list')}>List</button>
-              <button style={styles.settingsBtn} onClick={() => setShowSettings(true)}>⚙</button>
-              <button style={styles.signOutBtn} onClick={signOut}>Sign Out</button>
+            <div style={themedStyles.headerActions}>
+              {debugMode && <span style={{...themedStyles.savingIndicator, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '4px 8px', borderRadius: '4px'}}>🔧 Debug Mode</span>}
+              {saveStatus === 'saving' && <span style={themedStyles.savingIndicator}>Saving...</span>}
+              {saveStatus === 'saved' && <span style={{...themedStyles.savingIndicator, color: '#4ade80'}}>✓ Saved</span>}
+              {saveStatus === 'error' && <span style={{...themedStyles.savingIndicator, color: '#f87171', cursor: 'pointer'}} title={saveError || 'Save failed'} onClick={saveNow}>⚠ Error - Click to retry</span>}
+              <button style={{...themedStyles.viewToggle, ...(viewMode === 'galaxy' ? themedStyles.viewToggleActive : {})}} onClick={() => setViewMode('galaxy')}>Galaxy</button>
+              <button style={{...themedStyles.viewToggle, ...(viewMode === 'list' ? themedStyles.viewToggleActive : {})}} onClick={() => setViewMode('list')}>List</button>
+              <button style={themedStyles.settingsBtn} onClick={() => setShowSettings(true)}>⚙</button>
+              <button style={themedStyles.signOutBtn} onClick={signOut}>Sign Out</button>
             </div>
           </header>
-          <div style={styles.filterBar}>
-            <button style={{...styles.filterBtn, ...(activeFilter === 'all' ? styles.filterBtnActive : {})}} onClick={() => setActiveFilter('all')}>All ({people.length})</button>
+          <div style={themedStyles.filterBar}>
+            <button style={{...themedStyles.filterBtn, ...(activeFilter === 'all' ? themedStyles.filterBtnActive : {})}} onClick={() => setActiveFilter('all')}>All ({people.length})</button>
             {allTags.map(tag => {
               const count = people.filter(p => p.tags?.includes(tag)).length;
-              return <button key={tag} style={{...styles.filterBtn, ...(activeFilter === tag ? styles.filterBtnActive : {})}} onClick={() => setActiveFilter(tag)}>{tag} {count > 0 && `(${count})`}</button>;
+              return <button key={tag} style={{...themedStyles.filterBtn, ...(activeFilter === tag ? themedStyles.filterBtnActive : {})}} onClick={() => setActiveFilter(tag)}>{tag} {count > 0 && `(${count})`}</button>;
             })}
           </div>
-          <main style={styles.main}>
+          <main style={themedStyles.main}>
             {viewMode === 'galaxy' ? (
-              <GalaxyView sunName={sunName} people={positionedPeople} filteredIds={filteredPeople.map(p => p.id)} orbits={orbits} time={time} selectedPerson={selectedPerson} onSelectPerson={(p) => setSelectedPerson(people.find(pp => pp.id === p.id))} />
+              <GalaxyView sunName={sunName} people={positionedPeople} filteredIds={filteredPeople.map(p => p.id)} orbits={orbits} time={time} selectedPerson={selectedPerson} onSelectPerson={(p) => setSelectedPerson(people.find(pp => pp.id === p.id))} theme={theme} />
             ) : (
-              <ListView people={filteredPeople} orbits={orbits} onSelectPerson={setSelectedPerson} />
+              <ListView people={filteredPeople} orbits={orbits} onSelectPerson={setSelectedPerson} theme={theme} />
             )}
-            <button style={styles.addBtn} onClick={() => setShowAddForm(true)}>+ Add Person</button>
+            <button style={themedStyles.addBtn} onClick={() => setShowAddForm(true)}>+ Add Person</button>
           </main>
           {selectedPerson && <DetailPanel person={selectedPerson} orbits={orbits} onClose={() => setSelectedPerson(null)} onUpdate={(updates) => updatePerson(selectedPerson.id, updates)} onDelete={() => deletePerson(selectedPerson.id)} onLogInteraction={(type, date, note) => logInteraction(selectedPerson.id, type, date, note)} allTags={allTags} />}
           {showAddForm && <AddPersonModal orbits={orbits} allTags={allTags} onAdd={addPerson} onClose={() => setShowAddForm(false)} />}
-          {showSettings && <SettingsModal sunName={sunName} setSunName={setSunName} orbits={orbits} setOrbits={setOrbits} user={user} onClose={() => setShowSettings(false)} />}
+          {showSettings && <SettingsModal sunName={sunName} setSunName={setSunName} orbits={orbits} setOrbits={setOrbits} user={user} onClose={() => setShowSettings(false)} saveNow={saveNow} saveStatus={saveStatus} theme={theme} setTheme={setTheme} themedStyles={themedStyles} onOpenImport={() => { setShowSettings(false); setShowImport(true); }} />}
+          {showImport && <ImportModal orbits={orbits} onImport={importPeople} onClose={() => setShowImport(false)} themedStyles={themedStyles} theme={theme} />}
         </div>
       );
     }
